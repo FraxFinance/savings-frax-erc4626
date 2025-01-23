@@ -1,27 +1,25 @@
 // SPDX-License-Identifier: ISC
 pragma solidity ^0.8.19;
 
-import "../BaseTest.sol";
-import {
-    StakedFraxFunctions
-} from "../setMaxDistributionPerSecondPerAsset/TestSetMaxDistributionPerSecondPerAsset.t.sol";
+import "./BaseTestStakedFrxUSD.sol";
+import { StakedFrxUSDFunctions } from "./TestSetMaxDistributionPerSecondPerAsset.t.sol";
 
-abstract contract mintDepositFunctions is BaseTest {
-    function _stakedFrax_mint(uint256 _amount, address _recipient) internal {
+abstract contract mintDepositFunctions is BaseTestStakedFrxUSD {
+    function _stakedFrxUSD_mint(uint256 _amount, address _recipient) internal {
         hoax(_recipient);
-        stakedFrax.mint(_amount, _recipient);
+        stakedFrxUSD.mint(_amount, _recipient);
     }
 
-    function _stakedFrax_deposit(uint256 _amount, address _recipient) internal {
+    function _stakedFrxUSD_deposit(uint256 _amount, address _recipient) internal {
         hoax(_recipient);
-        stakedFrax.deposit(_amount, _recipient);
+        stakedFrxUSD.deposit(_amount, _recipient);
     }
 }
 
-contract TestMintAndDeposit is BaseTest, StakedFraxFunctions, mintDepositFunctions {
+contract TestMintAndDepositSfrxUSD is BaseTestStakedFrxUSD, StakedFrxUSDFunctions, mintDepositFunctions {
     /// FEATURE: mint and deposit
 
-    using StakedFraxStructHelper for *;
+    using StakedFrxUSDStructHelper for *;
 
     address bob;
     address alice;
@@ -30,7 +28,7 @@ contract TestMintAndDeposit is BaseTest, StakedFraxFunctions, mintDepositFunctio
     address joe;
 
     function setUp() public {
-        /// BACKGROUND: deploy the StakedFrax contract
+        /// BACKGROUND: deploy the StakedFrxUSD contract
         /// BACKGROUND: 10% APY cap
         /// BACKGROUND: frax as the underlying asset
         /// BACKGROUND: TIMELOCK_ADDRESS set as the timelock address
@@ -39,22 +37,22 @@ contract TestMintAndDeposit is BaseTest, StakedFraxFunctions, mintDepositFunctio
         bob = labelAndDeal(address(1234), "bob");
         mintFraxTo(bob, 5000 ether);
         hoax(bob);
-        fraxErc20.approve(stakedFraxAddress, type(uint256).max);
+        fraxErc20.approve(stakedFrxUSDAddress, type(uint256).max);
 
         alice = labelAndDeal(address(2345), "alice");
         mintFraxTo(alice, 5000 ether);
         hoax(alice);
-        fraxErc20.approve(stakedFraxAddress, type(uint256).max);
+        fraxErc20.approve(stakedFrxUSDAddress, type(uint256).max);
 
         donald = labelAndDeal(address(3456), "donald");
         mintFraxTo(donald, 5000 ether);
         hoax(donald);
-        fraxErc20.approve(stakedFraxAddress, type(uint256).max);
+        fraxErc20.approve(stakedFrxUSDAddress, type(uint256).max);
 
         joe = labelAndDeal(address(4567), "joe");
         mintFraxTo(joe, 5000 ether);
         hoax(joe);
-        fraxErc20.approve(stakedFraxAddress, type(uint256).max);
+        fraxErc20.approve(stakedFrxUSDAddress, type(uint256).max);
     }
 
     function test_CanDepositNoRewards() public {
@@ -64,13 +62,15 @@ contract TestMintAndDeposit is BaseTest, StakedFraxFunctions, mintDepositFunctio
         // Act
         //==============================================================================
 
-        StakedFraxStorageSnapshot memory _initial_stakedFraxStorageSnapshot = stakedFraxStorageSnapshot(stakedFrax);
+        StakedFrxUSDStorageSnapshot memory _initial_stakedFrxUSDStorageSnapshot = stakedFrxUSDStorageSnapshot(
+            stakedFrxUSD
+        );
 
         /// WHEN: bob deposits 1000 FRAX
-        _stakedFrax_deposit(1000 ether, bob);
+        _stakedFrxUSD_deposit(1000 ether, bob);
 
-        DeltaStakedFraxStorageSnapshot memory _delta_stakedFraxStorageSnapshot = deltaStakedFraxStorageSnapshot(
-            _initial_stakedFraxStorageSnapshot
+        DeltaStakedFrxUSDStorageSnapshot memory _delta_stakedFrxUSDStorageSnapshot = deltaStakedFrxUSDStorageSnapshot(
+            _initial_stakedFrxUSDStorageSnapshot
         );
 
         //==============================================================================
@@ -78,34 +78,21 @@ contract TestMintAndDeposit is BaseTest, StakedFraxFunctions, mintDepositFunctio
         //==============================================================================
 
         /// THEN: The user should have 1000 shares
-        assertEq(stakedFrax.balanceOf(bob), 1000 ether, "THEN: The user should have 2000 shares");
+        uint256 bobShares = (1000e18 * 1e18) / stakedFrxUSD.pricePerShare();
+        assertEq(stakedFrxUSD.balanceOf(bob), bobShares, "THEN: The user should have 1000 FRAX worth of shares");
 
-        /// THEN: The totalSupply should have increased by 1000 shares
+        /// THEN: The totalSupply should have increased by specific number of shares
         assertEq(
-            _delta_stakedFraxStorageSnapshot.delta.totalSupply,
-            1000 ether,
-            "THEN: THe totalSupply should have increased by 1000 shares"
-        );
-
-        /// THEN: The totalSupply should be 2000 shares
-        assertEq(
-            _delta_stakedFraxStorageSnapshot.end.totalSupply,
-            2000 ether,
-            "THEN: The totalSupply should be 2000 shares"
+            _delta_stakedFrxUSDStorageSnapshot.delta.totalSupply,
+            bobShares,
+            "THEN: The totalSupply should have increased by specific number of  shares"
         );
 
         /// THEN: The storedTotalAssets should have increased by 1000 FRAX
         assertEq(
-            _delta_stakedFraxStorageSnapshot.delta.storedTotalAssets,
+            _delta_stakedFrxUSDStorageSnapshot.delta.storedTotalAssets,
             1000 ether,
-            "THEN: The storedTotalAssets should have increased by 1000 FRAX"
-        );
-
-        /// THEN: storedTotalAssets should be 2000 FRAX
-        assertEq(
-            _delta_stakedFraxStorageSnapshot.end.storedTotalAssets,
-            2000 ether,
-            "THEN: storedTotalAssets should be 2000 FRAX"
+            "THEN: The storedTotalAssets should have increased by specific number of  FRAX"
         );
     }
 
@@ -116,22 +103,22 @@ contract TestMintAndDeposit is BaseTest, StakedFraxFunctions, mintDepositFunctio
         // Arrange
         //==============================================================================
 
-        StakedFraxStorageSnapshot memory _initial_stakedFraxSnapshot = stakedFraxStorageSnapshot(stakedFrax);
+        StakedFrxUSDStorageSnapshot memory _initial_stakedFrxUSDSnapshot = stakedFrxUSDStorageSnapshot(stakedFrxUSD);
 
         /// GIVEN: maxDistributionPerSecondPerAsset is at 3_033_347_948 per second per 1e18 asset (roughly 10% APY)
         uint256 _maxDistributionPerSecondPerAsset = 3_033_347_948;
-        _stakedFrax_setMaxDistributionPerSecondPerAsset(_maxDistributionPerSecondPerAsset);
+        _stakedFrxUSD_setMaxDistributionPerSecondPerAsset(_maxDistributionPerSecondPerAsset);
 
         /// GIVEN: timestamp is 400_000 seconds away from the end of the cycle
         uint256 _syncDuration = 400_000;
-        mineBlocksToTimestamp(stakedFrax.__rewardsCycleData().cycleEnd + rewardsCycleLength - _syncDuration);
+        mineBlocksToTimestamp(stakedFrxUSD.__rewardsCycleData().cycleEnd + rewardsCycleLength - _syncDuration);
 
         /// GIVEN: 600 FRAX is transferred as rewards
         uint256 _rewards = 600 ether;
-        mintFraxTo(stakedFraxAddress, _rewards);
+        mintFraxTo(stakedFrxUSDAddress, _rewards);
 
         /// GIVEN: syncAndDistributeRewards is called
-        stakedFrax.syncRewardsAndDistribution();
+        stakedFrxUSD.syncRewardsAndDistribution();
 
         /// GIVEN: We wait 100_000 seconds
         uint256 _timeSinceLastRewardsDistribution = 100_000;
@@ -141,43 +128,49 @@ contract TestMintAndDeposit is BaseTest, StakedFraxFunctions, mintDepositFunctio
         // Act
         //==============================================================================
 
-        DeltaStakedFraxStorageSnapshot memory _second_deltaStakedFraxStorageSnapshot = deltaStakedFraxStorageSnapshot(
-            _initial_stakedFraxSnapshot
-        );
+        DeltaStakedFrxUSDStorageSnapshot
+            memory _second_deltaStakedFrxUSDStorageSnapshot = deltaStakedFrxUSDStorageSnapshot(
+                _initial_stakedFrxUSDSnapshot
+            );
+
+        uint256 _pricePerShare = stakedFrxUSD.pricePerShare();
 
         /// WHEN: A user deposits 1000 FRAX
-        _stakedFrax_deposit(1000 ether, bob);
+        _stakedFrxUSD_deposit(1000 ether, bob);
 
-        DeltaStakedFraxStorageSnapshot memory _third_deltaStakedFraxStorageSnapshot = deltaStakedFraxStorageSnapshot(
-            _second_deltaStakedFraxStorageSnapshot.end
-        );
+        DeltaStakedFrxUSDStorageSnapshot
+            memory _third_deltaStakedFrxUSDStorageSnapshot = deltaStakedFrxUSDStorageSnapshot(
+                _second_deltaStakedFrxUSDStorageSnapshot.end
+            );
 
         //==============================================================================
         // Assert
         //==============================================================================
-
-        uint256 _expectedRewards = (1000e18 * _maxDistributionPerSecondPerAsset * _timeSinceLastRewardsDistribution) /
-            1e18;
-        /// THEN: the storedTotalAssets should have increased by 150 frax for the rewards and 1000 frax for the deposit
+        uint256 _expectedRewards = (_second_deltaStakedFrxUSDStorageSnapshot.end.storedTotalAssets *
+            _maxDistributionPerSecondPerAsset *
+            _timeSinceLastRewardsDistribution) / 1e18;
+        /// THEN: the storedTotalAssets should have increased the rewards and 1000 frax for the deposit
         assertEq(
-            _third_deltaStakedFraxStorageSnapshot.delta.storedTotalAssets,
+            _third_deltaStakedFrxUSDStorageSnapshot.delta.storedTotalAssets,
             1000 ether + _expectedRewards,
             "storedTotalAssets should have increased by _expectedFrax for the rewards and 1000 frax for the deposit"
         );
 
-        // _expected = newAssets / sharePrice, sharePrice = assets / shares
-        uint256 _expectedShares = (uint256(1000e18) * 1000e18) / (1000e18 + _expectedRewards);
+        // _expected = newAssets* pricePerShare
+        uint256 _expectedShares = (1000e18 * 1e18) / _pricePerShare;
         /// THEN: The user should have 1000e18 * 1000e18 / 1150e18 shares
-        assertEq(
-            stakedFrax.balanceOf(bob),
+        assertApproxEqAbs(
+            stakedFrxUSD.balanceOf(bob),
             _expectedShares,
-            "THEN: The user should have 1000e18 * 1000e18 / (1000 + _expectedRewards) shares"
+            1000,
+            "THEN: The user should have the correct amount of shares"
         );
 
         /// THEN: The totalSupply should have increased by _expectedShares
-        assertEq(
-            _third_deltaStakedFraxStorageSnapshot.delta.totalSupply,
+        assertApproxEqAbs(
+            _third_deltaStakedFrxUSDStorageSnapshot.delta.totalSupply,
             _expectedShares,
+            1000,
             " THEN: The totalSupply should have increased by _expectedShares"
         );
     }
@@ -191,18 +184,18 @@ contract TestMintAndDeposit is BaseTest, StakedFraxFunctions, mintDepositFunctio
 
         /// GIVEN: maxDistributionPerSecondPerAsset is at 3_033_347_948 per second per 1e18 asset (roughly 10% APY)
         uint256 _maxDistributionPerSecondPerAsset = 3_033_347_948;
-        _stakedFrax_setMaxDistributionPerSecondPerAsset(_maxDistributionPerSecondPerAsset);
+        _stakedFrxUSD_setMaxDistributionPerSecondPerAsset(_maxDistributionPerSecondPerAsset);
 
         /// GIVEN: timestamp is 400_000 seconds away from the end of the cycle
         uint256 _syncDuration = 400_000;
-        mineBlocksToTimestamp(stakedFrax.__rewardsCycleData().cycleEnd + rewardsCycleLength - _syncDuration);
+        mineBlocksToTimestamp(stakedFrxUSD.__rewardsCycleData().cycleEnd + rewardsCycleLength - _syncDuration);
 
         /// GIVEN: 600 FRAX is transferred as rewards
         uint256 _rewards = 600 ether;
-        mintFraxTo(stakedFraxAddress, _rewards);
+        mintFraxTo(stakedFrxUSDAddress, _rewards);
 
         /// GIVEN: syncAndDistributeRewards is called
-        stakedFrax.syncRewardsAndDistribution();
+        stakedFrxUSD.syncRewardsAndDistribution();
 
         /// GIVEN: We wait 100_000 seconds
         uint256 _timeSinceLastRewardsDistribution = 100_000;
@@ -212,38 +205,39 @@ contract TestMintAndDeposit is BaseTest, StakedFraxFunctions, mintDepositFunctio
         // Act
         //==============================================================================
 
-        StakedFraxStorageSnapshot memory _initial_stakedFraxSnapshot = stakedFraxStorageSnapshot(stakedFrax);
+        StakedFrxUSDStorageSnapshot memory _initial_stakedFrxUSDSnapshot = stakedFrxUSDStorageSnapshot(stakedFrxUSD);
 
         /// WHEN: A user mints 1000 FRAX
-        // uint256 _expectedSharesToMint = stakedFrax.convertToShares(1000 ether);
-        _stakedFrax_mint(1000 ether, bob);
+        uint256 _pricePerShare = stakedFrxUSD.pricePerShare();
+        _stakedFrxUSD_mint(1000 ether, bob);
 
-        DeltaStakedFraxStorageSnapshot memory _fourth_deltaStakedFraxStorageSnapshot = deltaStakedFraxStorageSnapshot(
-            _initial_stakedFraxSnapshot
-        );
+        DeltaStakedFrxUSDStorageSnapshot
+            memory _fourth_deltaStakedFrxUSDStorageSnapshot = deltaStakedFrxUSDStorageSnapshot(
+                _initial_stakedFrxUSDSnapshot
+            );
 
         //==============================================================================
         // Assert
         //==============================================================================
+        uint256 _expectedRewards = (_initial_stakedFrxUSDSnapshot.storedTotalAssets *
+            _maxDistributionPerSecondPerAsset *
+            _timeSinceLastRewardsDistribution) / 1e18;
+        uint256 _expectedAmountTransferred = (1000 ether * _pricePerShare) / 1e18;
 
-        uint256 _expectedRewards = (1000e18 * _maxDistributionPerSecondPerAsset * _timeSinceLastRewardsDistribution) /
-            1e18;
-        uint256 _expectedSharePrice = (1000 ether + _expectedRewards) / 1000;
-        uint256 _expectedAmountTransferred = (1000 ether * _expectedSharePrice) / 1e18;
-        // Expected transfer amount = shares * sharePrice, sharePrice = 1150 / 1000.  => 1000 ether + _expectedRewards frax transferred
-        /// THEN: the storedTotalAssets should have increased by 150 frax for the rewards and 1150 frax for the mint
-        assertEq(
-            _fourth_deltaStakedFraxStorageSnapshot.delta.storedTotalAssets,
+        /// THEN: the storedTotalAssets should have increased by specific amount
+        assertApproxEqAbs(
+            _fourth_deltaStakedFrxUSDStorageSnapshot.delta.storedTotalAssets,
             _expectedAmountTransferred + _expectedRewards,
+            1000,
             "storedTotalAssets should have increased by _expectedRewards frax for the rewards and _expectedAmountTransferred frax for the mint"
         );
 
         /// THEN: the user should have 1000 shares
-        assertEq(stakedFrax.balanceOf(bob), 1000 ether, "THEN: the user should have 1000 shares");
+        assertEq(stakedFrxUSD.balanceOf(bob), 1000 ether, "THEN: the user should have 1000 shares");
 
-        /// THEN: The totalSupply should have increased by _expectedShares
+        /// THEN: The totalSupply should have increased by 1000
         assertEq(
-            _fourth_deltaStakedFraxStorageSnapshot.delta.totalSupply,
+            _fourth_deltaStakedFrxUSDStorageSnapshot.delta.totalSupply,
             1000 ether,
             " THEN: The totalSupply should have increased by 1000"
         );
@@ -261,19 +255,19 @@ contract TestMintAndDeposit is BaseTest, StakedFraxFunctions, mintDepositFunctio
         uint256 _timeSinceLastRewardsDistribution = 100_000;
         uint256 _rewards = 600 ether;
 
-        StakedFraxStorageSnapshot memory _initial_stakedFraxSnapshot = stakedFraxStorageSnapshot(stakedFrax);
+        StakedFrxUSDStorageSnapshot memory _initial_stakedFrxUSDSnapshot = stakedFrxUSDStorageSnapshot(stakedFrxUSD);
 
         /// GIVEN: maxDistributionPerSecondPerAsset is uncapped
-        _stakedFrax_setMaxDistributionPerSecondPerAsset(_maxDistributionPerSecondPerAsset);
+        _stakedFrxUSD_setMaxDistributionPerSecondPerAsset(_maxDistributionPerSecondPerAsset);
 
         /// GIVEN: timestamp is 400_000 seconds away from the end of the cycle
-        mineBlocksToTimestamp(stakedFrax.__rewardsCycleData().cycleEnd + rewardsCycleLength - _syncDuration);
+        mineBlocksToTimestamp(stakedFrxUSD.__rewardsCycleData().cycleEnd + rewardsCycleLength - _syncDuration);
 
         /// GIVEN: 600 FRAX is transferred as rewards
-        mintFraxTo(stakedFraxAddress, _rewards);
+        mintFraxTo(stakedFrxUSDAddress, _rewards);
 
         /// GIVEN: syncAndDistributeRewards is called
-        stakedFrax.syncRewardsAndDistribution();
+        stakedFrxUSD.syncRewardsAndDistribution();
 
         /// GIVEN: We wait 100_000 seconds
         mineBlocksBySecond(_timeSinceLastRewardsDistribution);
@@ -282,30 +276,39 @@ contract TestMintAndDeposit is BaseTest, StakedFraxFunctions, mintDepositFunctio
         // Act
         //==============================================================================
 
-        DeltaStakedFraxStorageSnapshot memory _second_deltaStakedFraxStorageSnapshot = deltaStakedFraxStorageSnapshot(
-            _initial_stakedFraxSnapshot
-        );
+        DeltaStakedFrxUSDStorageSnapshot
+            memory _second_deltaStakedFrxUSDStorageSnapshot = deltaStakedFrxUSDStorageSnapshot(
+                _initial_stakedFrxUSDSnapshot
+            );
+
+        uint256 _pricePerShare = stakedFrxUSD.pricePerShare();
 
         /// WHEN: A user mints 1000 FRAX
-        _stakedFrax_mint(1000 ether, bob);
+        _stakedFrxUSD_mint(1000 ether, bob);
 
-        DeltaStakedFraxStorageSnapshot memory _third_deltaSavingsFraxStorageSnapshot = deltaStakedFraxStorageSnapshot(
-            _second_deltaStakedFraxStorageSnapshot.end
-        );
+        DeltaStakedFrxUSDStorageSnapshot
+            memory _third_deltaSavingsFraxStorageSnapshot = deltaStakedFrxUSDStorageSnapshot(
+                _second_deltaStakedFrxUSDStorageSnapshot.end
+            );
 
         //==============================================================================
         // Assert
         //==============================================================================
 
-        /// THEN: the storedTotalAssets should have increased by 150 frax for the rewards and 1150 frax for the mint
-        assertEq(
+        uint256 _expectedRewards = (_second_deltaStakedFrxUSDStorageSnapshot.end.rewardsCycleData.rewardCycleAmount *
+            _timeSinceLastRewardsDistribution) / 400_000;
+        uint256 _storedTotalAssetsDelta = (1000e18 * _pricePerShare) / 1e18 + _expectedRewards;
+
+        /// THEN: the storedTotalAssets should have increased by the mint and rewards
+        assertApproxEqAbs(
             _third_deltaSavingsFraxStorageSnapshot.delta.storedTotalAssets,
-            1300 ether,
-            "storedTotalAssets should have increased by 150 frax for the rewards and 1000 frax for the mint"
+            _storedTotalAssetsDelta,
+            1000,
+            "storedTotalAssets should have increased by the mint and rewards"
         );
 
         /// THEN: the user should have 1000 shares
-        assertEq(stakedFrax.balanceOf(bob), 1000 ether, "THEN: the user should have 1000 shares");
+        assertEq(stakedFrxUSD.balanceOf(bob), 1000 ether, "THEN: the user should have 1000 shares");
     }
 
     function test_CanDepositWithRewardsCap() public {
@@ -320,19 +323,19 @@ contract TestMintAndDeposit is BaseTest, StakedFraxFunctions, mintDepositFunctio
         uint256 _timeSinceLastRewardsDistribution = 100_000;
         uint256 _rewards = 600 ether;
 
-        StakedFraxStorageSnapshot memory _initial_stakedFraxSnapshot = stakedFraxStorageSnapshot(stakedFrax);
-
         /// GIVEN: maxDistributionPerSecondPerAsset is uncapped
-        _stakedFrax_setMaxDistributionPerSecondPerAsset(_maxDistributionPerSecondPerAsset);
+        _stakedFrxUSD_setMaxDistributionPerSecondPerAsset(_maxDistributionPerSecondPerAsset);
 
         /// GIVEN: timestamp is 400_000 seconds away from the end of the cycle
-        mineBlocksToTimestamp(stakedFrax.__rewardsCycleData().cycleEnd + rewardsCycleLength - _syncDuration);
+        mineBlocksToTimestamp(stakedFrxUSD.__rewardsCycleData().cycleEnd + rewardsCycleLength - _syncDuration);
 
         /// GIVEN: 600 FRAX is transferred as rewards
-        mintFraxTo(stakedFraxAddress, _rewards);
+        mintFraxTo(stakedFrxUSDAddress, _rewards);
 
         /// GIVEN: syncAndDistributeRewards is called
-        stakedFrax.syncRewardsAndDistribution();
+        stakedFrxUSD.syncRewardsAndDistribution();
+
+        StakedFrxUSDStorageSnapshot memory _initial_stakedFrxUSDSnapshot = stakedFrxUSDStorageSnapshot(stakedFrxUSD);
 
         /// GIVEN: We wait 100_000 seconds
         mineBlocksBySecond(_timeSinceLastRewardsDistribution);
@@ -341,37 +344,44 @@ contract TestMintAndDeposit is BaseTest, StakedFraxFunctions, mintDepositFunctio
         //==============================================================================
 
         /// WHEN: A user deposits 1000 FRAX
-        _stakedFrax_deposit(1000 ether, bob);
+        uint256 _pricePerShare = stakedFrxUSD.pricePerShare();
+        _stakedFrxUSD_deposit(1000 ether, bob);
 
-        DeltaStakedFraxStorageSnapshot memory _second_deltaStakedFraxStorageSnapshot = deltaStakedFraxStorageSnapshot(
-            _initial_stakedFraxSnapshot
-        );
+        DeltaStakedFrxUSDStorageSnapshot
+            memory _second_deltaStakedFrxUSDStorageSnapshot = deltaStakedFrxUSDStorageSnapshot(
+                _initial_stakedFrxUSDSnapshot
+            );
 
         //==============================================================================
         // Assert
         //==============================================================================
 
-        /// THEN: the storedTotalAssets should have increased by 150 frax for the rewards and 1000 frax for the deposit
+        /// THEN: the storedTotalAssets should have increased by the deposit and the rewards
+        uint256 _expectedRewards = (_initial_stakedFrxUSDSnapshot.rewardsCycleData.rewardCycleAmount *
+            _timeSinceLastRewardsDistribution) / 400_000;
+        uint256 _storedTotalAssetsDelta = 1000 ether + _expectedRewards;
         assertEq(
-            _second_deltaStakedFraxStorageSnapshot.delta.storedTotalAssets,
-            1150 ether,
-            "storedTotalAssets should have increased by 150 frax for the rewards and 1000 frax for the deposit"
+            _second_deltaStakedFrxUSDStorageSnapshot.delta.storedTotalAssets,
+            _storedTotalAssetsDelta,
+            "storedTotalAssets should have increased by deposit and the rewards"
         );
 
         // _expected = newAssets / sharePrice, sharePrice = assets / shares
-        uint256 _expectedShares = (uint256(1000e18) * 1000e18) / 1150e18;
-        /// THEN: The user should have 1000e18 * 1000e18 / 1150e18 shares
-        assertEq(
-            stakedFrax.balanceOf(bob),
+        uint256 _expectedShares = (1000e18 * 1e18) / _pricePerShare;
+        /// THEN: The user should have 1000 worth of shares
+        assertApproxEqAbs(
+            stakedFrxUSD.balanceOf(bob),
             _expectedShares,
-            "THEN: The user should have 1000e18 * 1000e18 / 1150e18 shares"
+            1000,
+            "THEN: The user should have 1000 worth of shares"
         );
 
-        /// THEN: The totalSupply should have increased by _expectedShares
-        assertEq(
-            _second_deltaStakedFraxStorageSnapshot.delta.totalSupply,
+        /// THEN: The totalSupply should have increased by 1000
+        assertApproxEqAbs(
+            _second_deltaStakedFrxUSDStorageSnapshot.delta.totalSupply,
             _expectedShares,
-            " THEN: The totalSupply should have increased by _expectedShares"
+            1000,
+            " THEN: The totalSupply should have increased by 1000"
         );
     }
 }

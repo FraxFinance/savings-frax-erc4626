@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-pragma solidity ^0.8.19;
+pragma solidity ^0.8.21;
 
 // ====================================================================
 // |     ______                   _______                             |
@@ -18,7 +18,7 @@ import { SafeCastLib } from "solmate/utils/SafeCastLib.sol";
 
 /// @title LinearRewardsErc4626
 /// @notice An ERC4626 Vault implementation with linear rewards
-contract LinearRewardsErc4626 is ERC4626 {
+abstract contract LinearRewardsErc4626 is ERC4626 {
     using SafeCastLib for *;
 
     /// @notice The precision of all integer calculations
@@ -43,6 +43,9 @@ contract LinearRewardsErc4626 is ERC4626 {
     /// @notice The total amount of assets that have been distributed and deposited
     uint256 public storedTotalAssets;
 
+    /// @notice The precision of the underlying asset
+    uint256 public immutable UNDERLYING_PRECISION;
+
     /// @param _underlying The erc20 asset deposited
     /// @param _name The name of the vault
     /// @param _symbol The symbol of the vault
@@ -54,13 +57,18 @@ contract LinearRewardsErc4626 is ERC4626 {
         uint256 _rewardsCycleLength
     ) ERC4626(_underlying, _name, _symbol) {
         REWARDS_CYCLE_LENGTH = _rewardsCycleLength;
+        UNDERLYING_PRECISION = 10 ** _underlying.decimals();
 
         // initialize rewardsCycleEnd value
         // NOTE: normally distribution of rewards should be done prior to _syncRewards but in this case we know there are no users or rewards yet.
         _syncRewards();
 
         // initialize lastRewardsDistribution value
-        distributeRewards();
+        _distributeRewards();
+    }
+
+    function pricePerShare() external view returns (uint256 _pricePerShare) {
+        _pricePerShare = convertToAssets(UNDERLYING_PRECISION);
     }
 
     /// @notice The ```calculateRewardsToDistribute``` function calculates the amount of rewards to distribute based on the rewards cycle data and the time elapsed
@@ -98,17 +106,16 @@ contract LinearRewardsErc4626 is ERC4626 {
 
     /// @notice The ```distributeRewards``` function distributes the rewards once per block
     /// @return _rewardToDistribute The amount of underlying to distribute
-    function distributeRewards() public virtual returns (uint256 _rewardToDistribute) {
+    function _distributeRewards() internal virtual returns (uint256 _rewardToDistribute) {
         _rewardToDistribute = previewDistributeRewards();
 
-        // Only write to state if we need to update
+        // Only write to state/emit if we actually distribute rewards
         if (_rewardToDistribute != 0) {
             storedTotalAssets += _rewardToDistribute;
+            emit DistributeRewards({ rewardsToDistribute: _rewardToDistribute });
         }
 
         lastRewardsDistribution = block.timestamp;
-
-        emit DistributeRewards({ rewardsToDistribute: _rewardToDistribute });
     }
 
     /// @notice The ```previewSyncRewards``` function returns the updated rewards cycle data without updating the state
@@ -129,7 +136,7 @@ contract LinearRewardsErc4626 is ERC4626 {
             .safeCastTo40();
 
         // This block prevents big jumps in rewards rate in case the sync happens near the end of the cycle
-        if (_cycleEnd - _timestamp < REWARDS_CYCLE_LENGTH / 20) {
+        if (_cycleEnd - _timestamp < REWARDS_CYCLE_LENGTH / 40) {
             _cycleEnd += REWARDS_CYCLE_LENGTH.safeCastTo40();
         }
 
@@ -146,12 +153,9 @@ contract LinearRewardsErc4626 is ERC4626 {
         RewardsCycleData memory _rewardsCycleData = previewSyncRewards();
 
         if (
-            block
-                .timestamp
-                // If true, then preview shows a rewards should be processed
-                .safeCastTo40() ==
-            _rewardsCycleData.lastSync &&
+            // If true, then preview shows a rewards should be processed
             // Ensures that we don't write to state twice in the same block
+            block.timestamp.safeCastTo40() == _rewardsCycleData.lastSync &&
             rewardsCycleData.lastSync != _rewardsCycleData.lastSync
         ) {
             rewardsCycleData = _rewardsCycleData;
@@ -166,7 +170,7 @@ contract LinearRewardsErc4626 is ERC4626 {
     /// @notice The ```syncRewardsAndDistribution``` function is used to update the rewards cycle data and distribute rewards
     /// @dev rewards must be distributed before the cycle is synced
     function syncRewardsAndDistribution() public virtual {
-        distributeRewards();
+        _distributeRewards();
         _syncRewards();
     }
 
@@ -187,8 +191,7 @@ contract LinearRewardsErc4626 is ERC4626 {
     /// @param _receiver The address to send the shares to
     /// @return _shares The amount of shares minted
     function deposit(uint256 _assets, address _receiver) public override returns (uint256 _shares) {
-        distributeRewards();
-        _syncRewards();
+        syncRewardsAndDistribution();
         _shares = super.deposit({ assets: _assets, receiver: _receiver });
     }
 
@@ -197,8 +200,7 @@ contract LinearRewardsErc4626 is ERC4626 {
     /// @param _receiver The address to send the shares to
     /// @return _assets The amount of underlying deposited
     function mint(uint256 _shares, address _receiver) public override returns (uint256 _assets) {
-        distributeRewards();
-        _syncRewards();
+        syncRewardsAndDistribution();
         _assets = super.mint({ shares: _shares, receiver: _receiver });
     }
 
@@ -212,8 +214,8 @@ contract LinearRewardsErc4626 is ERC4626 {
     /// @param _owner The address of the owner of the shares
     /// @return _shares The amount of shares burned
     function withdraw(uint256 _assets, address _receiver, address _owner) public override returns (uint256 _shares) {
-        distributeRewards();
-        _syncRewards();
+        syncRewardsAndDistribution();
+
         _shares = super.withdraw({ assets: _assets, receiver: _receiver, owner: _owner });
     }
 
@@ -223,8 +225,8 @@ contract LinearRewardsErc4626 is ERC4626 {
     /// @param _owner The address of the owner of the shares
     /// @return _assets The amount of underlying redeemed
     function redeem(uint256 _shares, address _receiver, address _owner) public override returns (uint256 _assets) {
-        distributeRewards();
-        _syncRewards();
+        syncRewardsAndDistribution();
+
         _assets = super.redeem({ shares: _shares, receiver: _receiver, owner: _owner });
     }
 

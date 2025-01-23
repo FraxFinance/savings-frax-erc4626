@@ -11,3 +11,4 @@ import { BytesHelper } from "frax-std/BytesHelper.sol";
 import { console } from "frax-std/FraxTest.sol";
 
 import { StakedFraxStructHelper } from "./helpers/StakedFraxStructHelper.sol";
+import { StakedFrxUSDStructHelper } from "./helpers/StakedFrxUSDStructHelper.sol";

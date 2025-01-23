@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: ISC
-pragma solidity ^0.8.19;
+pragma solidity ^0.8.20;
 
 import { BaseScript } from "frax-std/BaseScript.sol";
 import { console } from "frax-std/FraxTest.sol";
@@ -13,7 +13,7 @@ function deployStakedFrax() returns (StakedFrax _stakedFrax) {
 
     _stakedFrax = new StakedFrax({
         _underlying: IERC20(Constants.Mainnet.FRAX_ERC20),
-        _name: "Staked Frax",
+        _name: "Staked FRAX",
         _symbol: "sFRAX",
         _rewardsCycleLength: 7 days,
         _maxDistributionPerSecondPerAsset: TEN_PERCENT,
